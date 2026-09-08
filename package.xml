@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>hero_chassis_controller</name>
+    <version>0.1.0</version>
+
+    <description>hero robot Chassis controller(手敲版) date:9.7 shuang!</description>
+
+    <maintainer email="2129274677@qq.com"> shuang </maintainer>
+    <license>BSD</license>
+    <author email="2129274677@qq.com"> shuang</author>
+
+
+    <!-- buildtool_depend: dependencies of the build process -->
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <!-- build_depend: dependencies only used in source files -->
+
+    <!-- depend: build, export, and execution dependency -->
+    <depend>roscpp</depend>
+    <depend>roslint</depend>
+    <depend>geometry_msgs</depend>
+    <depend>controller_interface</depend>
+    <depend>hardware_interface</depend>
+    <depend>forward_command_controller</depend>
+    <depend>pluginlib</depend>
+    <depend>rm_description</depend>
+
+    <export>
+        <controller_interface plugin="${prefix}/hero_chassis_controller_plugins.xml"/>
+
+    </export>
+
+</package>
+
