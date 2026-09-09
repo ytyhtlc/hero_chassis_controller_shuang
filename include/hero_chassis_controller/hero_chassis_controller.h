@@ -3,6 +3,9 @@
 
 #include <controller_interface/controller.h>
 #include <hardware_interface/joint_command_interface.h>
+#include <geometry_msgs/Twist.h>
+#include <ros/ros.h>
+
 
 namespace hero_chassis_controller {
 
@@ -18,6 +21,13 @@ namespace hero_chassis_controller {
 
         hardware_interface::JointHandle front_left_joint_, front_right_joint_,
             back_left_joint_, back_right_joint_;
+    private:
+        void cmdVelCallback(const geometry_msgs::Twist::ConstPtr &msg);
+
+        ros::Subscriber cmd_vel_sub_;
+        double vx_{0.0};
+        double vy_{0.0};
+        double wz_{0.0};
     };
 
 }  // namespace hero_chassis_controller
