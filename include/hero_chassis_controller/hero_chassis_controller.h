@@ -6,6 +6,7 @@
 #include <geometry_msgs/Twist.h>
 #include <ros/ros.h>
 #include <control_toolbox/pid.h>
+#include <std_msgs/Float64.h>//用来发ik期望与实际速度的话题消息给rgt
 
 
 namespace hero_chassis_controller {
@@ -27,7 +28,15 @@ namespace hero_chassis_controller {
     private:
         void cmdVelCallback(const geometry_msgs::Twist::ConstPtr &msg);
 
+        //速度订阅者
         ros::Subscriber cmd_vel_sub_;
+
+        //期望与实际速度的发布者
+        ros::Publisher pub_fl_des_, pub_fl_act_;
+        ros::Publisher pub_fr_des_, pub_fr_act_;
+        ros::Publisher pub_bl_des_, pub_bl_act_;
+        ros::Publisher pub_br_des_, pub_br_act_;
+
         double vx_{0.0};
         double vy_{0.0};
         double wz_{0.0};
@@ -45,6 +54,7 @@ namespace hero_chassis_controller {
         control_toolbox::Pid pid_fr_;
         control_toolbox::Pid pid_bl_;
         control_toolbox::Pid pid_br_;
+        //
     };
 
 }  // namespace hero_chassis_controller

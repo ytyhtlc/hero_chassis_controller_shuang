@@ -25,6 +25,15 @@ namespace hero_chassis_controller {
             return false;
         }
 
+        //初始化ik期望和实际速度发布者
+        pub_fl_des_ = controller_nh.advertise<std_msgs::Float64>("fl/des", 1);
+        pub_fl_act_ = controller_nh.advertise<std_msgs::Float64>("fl/act", 1);
+        pub_fr_des_ = controller_nh.advertise<std_msgs::Float64>("fr/des", 1);
+        pub_fr_act_ = controller_nh.advertise<std_msgs::Float64>("fr/act", 1);
+        pub_bl_des_ = controller_nh.advertise<std_msgs::Float64>("bl/des", 1);
+        pub_bl_act_ = controller_nh.advertise<std_msgs::Float64>("bl/act", 1);
+        pub_br_des_ = controller_nh.advertise<std_msgs::Float64>("br/des", 1);
+        pub_br_act_ = controller_nh.advertise<std_msgs::Float64>("br/act", 1);
         return true;
     }
     //PID启动！
@@ -45,7 +54,7 @@ namespace hero_chassis_controller {
     }
     void HeroChassisController::update(const ros::Time &time, const ros::Duration &period) {
         (void)time;
-        (void)period;
+
 
         //接收的底盘速度来IK解算出4个轮子目标角速度
         const double R = lx_ + ly_;
@@ -66,6 +75,25 @@ namespace hero_chassis_controller {
         front_right_joint_.setCommand(pid_fr_.computeCommand(e_fr,period));
         back_left_joint_.setCommand(pid_bl_.computeCommand(e_bl,period));
         back_right_joint_.setCommand(pid_br_.computeCommand(e_br,period));
+
+        //发布4个轮分别的期望和实际速度的消息
+        std_msgs::Float64 msg;
+        msg.data = w_fl_;
+        pub_fl_des_.publish(msg);
+        msg.data = front_left_joint_.getVelocity();
+        pub_fl_act_.publish(msg);
+        msg.data = w_fr_;
+        pub_fr_des_.publish(msg);
+        msg.data = front_right_joint_.getVelocity();
+        pub_fr_act_.publish(msg);
+        msg.data = w_bl_;
+        pub_bl_des_.publish(msg);
+        msg.data = back_left_joint_.getVelocity();
+        pub_bl_act_.publish(msg);
+        msg.data = w_br_;
+        pub_br_des_.publish(msg);
+        msg.data = back_right_joint_.getVelocity();
+        pub_br_act_.publish(msg);
 
         //打印实际速度和目标速度日志
         ROS_INFO_THROTTLE(1.0,
