@@ -5,6 +5,7 @@
 #include <hardware_interface/joint_command_interface.h>
 #include <geometry_msgs/Twist.h>
 #include <ros/ros.h>
+#include <control_toolbox/pid.h>
 
 
 namespace hero_chassis_controller {
@@ -18,6 +19,8 @@ namespace hero_chassis_controller {
         bool init(hardware_interface::EffortJointInterface *effort_joint_interface,
                   ros::NodeHandle &root_nh, ros::NodeHandle &controller_nh) override;
         void update(const ros::Time &time, const ros::Duration &period) override;
+        //pid启动！
+        void starting(const ros::Time &time) override;
 
         hardware_interface::JointHandle front_left_joint_, front_right_joint_,
             back_left_joint_, back_right_joint_;
@@ -37,6 +40,11 @@ namespace hero_chassis_controller {
         double w_fr_{0.0};
         double w_bl_{0.0};
         double w_br_{0.0};
+        //4个轮各自的PID
+        control_toolbox::Pid pid_fl_;
+        control_toolbox::Pid pid_fr_;
+        control_toolbox::Pid pid_bl_;
+        control_toolbox::Pid pid_br_;
     };
 
 }  // namespace hero_chassis_controller

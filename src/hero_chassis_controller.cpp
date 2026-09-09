@@ -5,7 +5,7 @@ namespace hero_chassis_controller {
 
     bool HeroChassisController::init(hardware_interface::EffortJointInterface *effort_joint_interface,
                                      ros::NodeHandle &root_nh, ros::NodeHandle &controller_nh) {
-        (void)controller_nh;
+
 
         front_left_joint_ = effort_joint_interface->getHandle("left_front_wheel_joint");
         front_right_joint_ = effort_joint_interface->getHandle("right_front_wheel_joint");
@@ -15,9 +15,28 @@ namespace hero_chassis_controller {
         cmd_vel_sub_ = root_nh.subscribe(
             "/cmd_vel",1, &HeroChassisController::cmdVelCallback, this);
 
+        //PID初始化判断
+        if (!pid_fl_.init(ros::NodeHandle(controller_nh,"pid_fl")) ||
+            !pid_fr_.init(ros::NodeHandle(controller_nh,"pid_fr")) ||
+            !pid_br_.init(ros::NodeHandle(controller_nh,"pid_br")) ||
+            !pid_bl_.init(ros::NodeHandle(controller_nh,"pid_bl")) ) {
+
+            ROS_ERROR("Failed to init  wheel PIDS");
+            return false;
+        }
+
         return true;
     }
+    //PID启动！
+    void HeroChassisController::starting(const ros::Time &time) {
+        (void)time;
+        pid_fl_.reset();
+        pid_fr_.reset();
+        pid_br_.reset();
+        pid_bl_.reset();
+    }
 
+    //接收底盘速度消息回调
     void HeroChassisController::cmdVelCallback(const geometry_msgs::Twist::ConstPtr &msg) {
         vx_ = msg->linear.x;
         vy_ = msg->linear.y;
@@ -28,23 +47,35 @@ namespace hero_chassis_controller {
         (void)time;
         (void)period;
 
-        //IK解算出4个轮子角速度
+        //接收的底盘速度来IK解算出4个轮子目标角速度
         const double R = lx_ + ly_;
 
         w_fl_ = (vx_ - vy_ - R * wz_) / wheel_radius_;
         w_fr_ = (vx_ + vy_ + R * wz_) / wheel_radius_;
         w_bl_ = (vx_ + vy_ - R * wz_) / wheel_radius_;
         w_br_ = (vx_ - vy_ + R * wz_) / wheel_radius_;
-        //发送信息
-        ROS_INFO_THROTTLE(1.0,"cmd_vel: vx=%.3f vy=%.3f wz=%.3f | "
-                      "w FL=%.3f FR=%.3f BL=%.3f BR=%.3f",
-                      vx_, vy_, wz_, w_fl_, w_fr_, w_bl_, w_br_);
 
+        //计算目标角速度与实际的误差
+        const double e_fl = w_fl_ - front_left_joint_.getVelocity();
+        const double e_fr = w_fr_ - front_right_joint_.getVelocity();
+        const double e_bl = w_bl_ - back_left_joint_.getVelocity();
+        const double e_br = w_br_ - back_right_joint_.getVelocity();
 
-        front_left_joint_.setCommand(w_fl_);
-        front_right_joint_.setCommand(w_fr_);
-        back_left_joint_.setCommand(w_bl_);
-        back_right_joint_.setCommand(w_br_);
+        //输出pid计算后的力矩
+        front_left_joint_.setCommand(pid_fl_.computeCommand(e_fl,period));
+        front_right_joint_.setCommand(pid_fr_.computeCommand(e_fr,period));
+        back_left_joint_.setCommand(pid_bl_.computeCommand(e_bl,period));
+        back_right_joint_.setCommand(pid_br_.computeCommand(e_br,period));
+
+        //打印实际速度和目标速度日志
+        ROS_INFO_THROTTLE(1.0,
+        "des FL=%.3f act=%.3f | FR des=%.3f act=%.3f | "
+        "BL des=%.3f act=%.3f | BR des=%.3f act=%.3f",
+        w_fl_, front_left_joint_.getVelocity(),
+        w_fr_, front_right_joint_.getVelocity(),
+        w_bl_, back_left_joint_.getVelocity(),
+        w_br_, back_right_joint_.getVelocity());
+
     }
 
     PLUGINLIB_EXPORT_CLASS(hero_chassis_controller::HeroChassisController,
