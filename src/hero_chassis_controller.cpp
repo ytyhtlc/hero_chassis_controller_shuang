@@ -28,10 +28,23 @@ namespace hero_chassis_controller {
         (void)time;
         (void)period;
 
-        front_left_joint_.setCommand(1.0);
-        front_right_joint_.setCommand(1.0);
-        back_left_joint_.setCommand(1.0);
-        back_right_joint_.setCommand(1.0);
+        //IK解算出4个轮子角速度
+        const double R = lx_ + ly_;
+
+        w_fl_ = (vx_ - vy_ - R * wz_) / wheel_radius_;
+        w_fr_ = (vx_ + vy_ + R * wz_) / wheel_radius_;
+        w_bl_ = (vx_ + vy_ - R * wz_) / wheel_radius_;
+        w_br_ = (vx_ - vy_ + R * wz_) / wheel_radius_;
+        //发送信息
+        ROS_INFO_THROTTLE(1.0,"cmd_vel: vx=%.3f vy=%.3f wz=%.3f | "
+                      "w FL=%.3f FR=%.3f BL=%.3f BR=%.3f",
+                      vx_, vy_, wz_, w_fl_, w_fr_, w_bl_, w_br_);
+
+
+        front_left_joint_.setCommand(w_fl_);
+        front_right_joint_.setCommand(w_fr_);
+        back_left_joint_.setCommand(w_bl_);
+        back_right_joint_.setCommand(w_br_);
     }
 
     PLUGINLIB_EXPORT_CLASS(hero_chassis_controller::HeroChassisController,

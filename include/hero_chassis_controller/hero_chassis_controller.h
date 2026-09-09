@@ -28,6 +28,15 @@ namespace hero_chassis_controller {
         double vx_{0.0};
         double vy_{0.0};
         double wz_{0.0};
+        //底盘参数
+        double wheel_radius_{0.07625};
+        double lx_{0.2};
+        double ly_{0.2};
+        //4个轮的角速度
+        double w_fl_{0.0};
+        double w_fr_{0.0};
+        double w_bl_{0.0};
+        double w_br_{0.0};
     };
 
 }  // namespace hero_chassis_controller
