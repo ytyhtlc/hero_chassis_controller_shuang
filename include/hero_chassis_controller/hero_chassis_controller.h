@@ -16,6 +16,12 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 
+//全局系
+#include <geometry_msgs/Vector3Stamped.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <memory>
+
 
 namespace hero_chassis_controller {
 
@@ -45,9 +51,11 @@ namespace hero_chassis_controller {
         ros::Publisher pub_bl_des_, pub_bl_act_;
         ros::Publisher pub_br_des_, pub_br_act_;
 
+        //接收的在base_link的底盘速度
         double vx_{0.0};
         double vy_{0.0};
         double wz_{0.0};
+
         //底盘参数
         double wheel_radius_{0.07625};
         double lx_{0.2};
@@ -75,6 +83,17 @@ namespace hero_chassis_controller {
         double x_{0.0};
         double y_{0.0};
         double th_{0.0};
+
+        //真正进IK的车体系速度
+        double vx_cmd_{0.0};
+        double vy_cmd_{0.0};
+        double wz_cmd_{0.0};
+        //创建缓冲和listener的指针
+        tf2_ros::Buffer tf_buffer_;
+        std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+        //全局系参数
+        bool use_global_vel_{false};
+        std::string global_frame_{"odom"};
 
     };
 

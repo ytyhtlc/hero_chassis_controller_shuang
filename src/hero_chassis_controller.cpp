@@ -37,6 +37,12 @@ namespace hero_chassis_controller {
 
         //初始化odom发布和创建话题
         odom_pub_ = root_nh.advertise<nav_msgs::Odometry>("/odom",10);
+
+        //获取系参数和构建tf_listener
+        controller_nh.param("use_global_vel",use_global_vel_,false);
+        controller_nh.param("global_frame",global_frame_,std::string("odom"));
+        tf_listener_.reset((new tf2_ros::TransformListener(tf_buffer_)));
+
         return true;
     }
     //PID启动！
@@ -57,7 +63,7 @@ namespace hero_chassis_controller {
         vx_ = msg->linear.x;
         vy_ = msg->linear.y;
         wz_ = msg->angular.z;
-        ROS_INFO_THROTTLE(1.0, "cmd_vel: vx=%.3f vy=%.3f wz=%.3f", vx_, vy_, wz_);
+        ROS_INFO_THROTTLE(1.0, "cmd_vel: vx=%.3f vy=%.3f wz=%.3f", vx_, vy_, wz_ );
     }
     void HeroChassisController::update(const ros::Time &time, const ros::Duration &period) {
 
@@ -71,11 +77,37 @@ namespace hero_chassis_controller {
         const double wbl_real = back_left_joint_.getVelocity();
         const double wbr_real = back_right_joint_.getVelocity();
 
+        vx_cmd_ = vx_;
+        vy_cmd_ = vy_;
+        wz_cmd_ = wz_;
+
+        //判断全局系还是底盘系并分解速度
+        if (use_global_vel_) {
+            geometry_msgs::Vector3Stamped vin, vout;
+            vin.header.stamp = ros::Time(0);
+            vin.header.frame_id = global_frame_;
+            vin.vector.x = vx_;
+            vin.vector.y = vy_;
+            vin.vector.z = 0.0;
+            try {
+                vout = tf_buffer_.transform(vin,"base_link");
+                vx_cmd_ = vout.vector.x;
+                vy_cmd_ = vout.vector.y;
+            }catch (const tf2::TransformException &ex) {
+                ROS_WARN_THROTTLE(1.0, "global vel TF failed: %s", ex.what());
+                // vx_cmd_/vy_cmd_ 已等于 vx_/vy_，保持底盘模式回退
+            }
+        }
+
+///////////////////////////////////////
+///逆运动学IK解算+PID控制+base_link速度发布
+///////////////////////////////////////
+
         //IK解算出4个轮的目标速度
-        w_fl_ = (vx_ - vy_ - R * wz_) / wheel_radius_;
-        w_fr_ = (vx_ + vy_ + R * wz_) / wheel_radius_;
-        w_bl_ = (vx_ + vy_ - R * wz_) / wheel_radius_;
-        w_br_ = (vx_ - vy_ + R * wz_) / wheel_radius_;
+        w_fl_ = (vx_cmd_ - vy_cmd_ - R * wz_cmd_) / wheel_radius_;
+        w_fr_ = (vx_cmd_ + vy_cmd_ + R * wz_cmd_) / wheel_radius_;
+        w_bl_ = (vx_cmd_ + vy_cmd_ - R * wz_cmd_) / wheel_radius_;
+        w_br_ = (vx_cmd_ - vy_cmd_ + R * wz_cmd_) / wheel_radius_;
 
         //计算目标角速度与实际的误差
         const double e_fl = w_fl_ - wfl_real;
