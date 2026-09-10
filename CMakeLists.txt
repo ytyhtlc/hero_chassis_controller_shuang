@@ -17,7 +17,12 @@ find_package(catkin REQUIRED
         hardware_interface
         geometry_msgs
         pluginlib
-
+        control_toolbox
+        std_msgs
+        nav_msgs
+        tf2
+        tf2_ros
+        tf2_geometry_msgs
 )
 
 ##hand make code shuang!
@@ -37,6 +42,12 @@ catkin_package(
         hardware_interface
         geometry_msgs
         pluginlib
+        control_toolbox
+        std_msgs
+        nav_msgs
+        tf2
+        tf2_ros
+        tf2_geometry_msgs
 
         DEPENDS
 )

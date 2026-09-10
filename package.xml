@@ -24,6 +24,13 @@
     <depend>forward_command_controller</depend>
     <depend>pluginlib</depend>
     <depend>rm_description</depend>
+    <depend>control_toolbox</depend>
+    <depend>std_msgs</depend>
+
+    <depend>nav_msgs</depend>
+    <depend>tf2</depend>
+    <depend>tf2_ros</depend>
+    <depend>tf2_geometry_msgs</depend>
 
     <export>
         <controller_interface plugin="${prefix}/hero_chassis_controller_plugins.xml"/>

@@ -1,6 +1,10 @@
 controller:
   hero_chassis_controller:
     type: hero_chassis_controller/HeroChassisController
+    pid_fl: {p: 0.5, i: 0.0, d: 0.0, i_clamp: 2.0}
+    pid_fr: { p: 0.5, i: 0.0, d: 0.0, i_clamp: 2.0 }
+    pid_bl: { p: 0.5, i: 0.0, d: 0.0, i_clamp: 2.0 }
+    pid_br: { p: 0.5, i: 0.0, d: 0.0, i_clamp: 2.0 }
 
   joint_state_controller:
     type: joint_state_controller/JointStateController
