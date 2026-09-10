@@ -81,7 +81,10 @@ namespace hero_chassis_controller {
         vy_cmd_ = vy_;
         wz_cmd_ = wz_;
 
-        //判断全局系还是底盘系并分解速度
+///////////////////////////////
+///判断全局系还是底盘系并分解速度
+//////////////////////////////
+
         if (use_global_vel_) {
             geometry_msgs::Vector3Stamped vin, vout;
             vin.header.stamp = ros::Time(0);
