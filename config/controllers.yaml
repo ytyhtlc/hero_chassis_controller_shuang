@@ -1,12 +1,20 @@
 controller:
   hero_chassis_controller:
     type: hero_chassis_controller/HeroChassisController
-    pid_fl: {p: 100, i: 1.0, d: 0.7, i_clamp: 2.0}
+    pid_fl: { p: 100, i: 1.0, d: 0.7, i_clamp: 2.0 }
     pid_fr: { p: 100, i: 1.0, d: 0.7, i_clamp: 2.0 }
     pid_bl: { p: 100, i: 1.0, d: 0.7, i_clamp: 2.0 }
     pid_br: { p: 100, i: 1.0, d: 0.7, i_clamp: 2.0 }
     use_global_vel: true    #false=底盘模式，true=全局模式
-    global_frame: odom       #全局模式的世界系
+    global_frame: odom      #全局模式的世界系
+
+    max_vel_x: 0.6
+    max_vel_y: 0.6
+    max_vel_w: 1.2
+    max_acc_x: 1.5
+    max_acc_y: 1.5
+    max_acc_w: 3.0
+
   joint_state_controller:
     type: joint_state_controller/JointStateController
     publish_rate: 50

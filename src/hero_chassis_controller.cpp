@@ -1,5 +1,6 @@
 #include "hero_chassis_controller/hero_chassis_controller.h"
 #include <pluginlib/class_list_macros.hpp>
+#include <boost/bind.hpp>
 
 namespace hero_chassis_controller {
 
@@ -38,10 +39,29 @@ namespace hero_chassis_controller {
         //初始化odom发布和创建话题
         odom_pub_ = root_nh.advertise<nav_msgs::Odometry>("/odom",10);
 
+        //路径话题
+        path_pub_ = root_nh.advertise<nav_msgs::Path>("/chassis_path", 1);
+        path_msg_.header.frame_id = "odom";
+
         //获取系参数和构建tf_listener
         controller_nh.param("use_global_vel",use_global_vel_,false);
         controller_nh.param("global_frame",global_frame_,std::string("odom"));
         tf_listener_.reset((new tf2_ros::TransformListener(tf_buffer_)));
+
+        controller_nh.param("max_vel_x",max_vel_x_,0.6);
+        controller_nh.param("max_vel_y",max_vel_y_,0.6);
+        controller_nh.param("max_vel_w",max_vel_w_,1.2);
+        controller_nh.param("max_acc_x", max_acc_x_, 1.5);
+        controller_nh.param("max_acc_y", max_acc_y_, 1.5);
+        controller_nh.param("max_acc_w", max_acc_w_, 3.0);
+
+        mode_sub_ = root_nh.subscribe(
+            "/chassis_use_global_vel",1,&HeroChassisController::modeCallback, this);
+        dyn_server_.reset(
+            new dynamic_reconfigure::Server<hero_chassis_controller::HeroChassisConfig>(controller_nh));
+        dyn_server_->setCallback(
+            boost::bind(&HeroChassisController::dynReconfigCb, this, _1, _2));
+
 
         return true;
     }
@@ -56,6 +76,14 @@ namespace hero_chassis_controller {
         x_ = 0.0;
         y_ = 0.0;
         th_ = 0.0;
+
+        //路径清0
+        path_msg_.poses.clear();
+
+        vx_filt_ = 0.0;
+        vy_filt_ = 0.0;
+        wz_filt_ = 0.0;
+        cmd_last_time_ = ros::Time(0);
     }
 
     //接收底盘速度消息回调
@@ -63,6 +91,8 @@ namespace hero_chassis_controller {
         vx_ = msg->linear.x;
         vy_ = msg->linear.y;
         wz_ = msg->angular.z;
+
+        cmd_last_time_ = ros::Time::now();
         ROS_INFO_THROTTLE(1.0, "cmd_vel: vx=%.3f vy=%.3f wz=%.3f", vx_, vy_, wz_ );
     }
     void HeroChassisController::update(const ros::Time &time, const ros::Duration &period) {
@@ -76,6 +106,14 @@ namespace hero_chassis_controller {
         const double wfr_real = front_right_joint_.getVelocity();
         const double wbl_real = back_left_joint_.getVelocity();
         const double wbr_real = back_right_joint_.getVelocity();
+
+        //判断键盘发送超时并清0目标速度
+        if (cmd_last_time_.isZero() ||
+            (ros::Time::now() - cmd_last_time_).toSec() > 0.3) {
+            vx_ = 0.0;
+            vy_ = 0.0;
+            wz_ = 0.0;
+        }
 
         vx_cmd_ = vx_;
         vy_cmd_ = vy_;
@@ -102,15 +140,41 @@ namespace hero_chassis_controller {
             }
         }
 
+        const double dt = period.toSec();
+
+////////////////////////////////
+///将底盘系上的速度裁剪和斜坡控制
+///////////////////////////////
+
+        auto clamp_abs = [](double v, double lim) {
+            if (lim <= 0.0) {
+                return 0.0;
+            }
+            if (v > lim) {
+                return lim;
+            }
+            if (v < -lim) {
+                return -lim;
+            }
+            return v;
+        };
+        vx_cmd_ = clamp_abs(vx_cmd_, max_vel_x_);
+        vy_cmd_ = clamp_abs(vy_cmd_, max_vel_y_);
+        wz_cmd_ = clamp_abs(wz_cmd_, max_vel_w_);
+
+        vx_filt_ = slew(vx_filt_, vx_cmd_, max_acc_x_, dt);
+        vy_filt_ = slew(vy_filt_, vy_cmd_, max_acc_y_, dt);
+        wz_filt_ = slew(wz_filt_, wz_cmd_, max_acc_w_, dt);
+
 ///////////////////////////////////////
 ///逆运动学IK解算+PID控制+base_link速度发布
 ///////////////////////////////////////
 
         //IK解算出4个轮的目标速度
-        w_fl_ = (vx_cmd_ - vy_cmd_ - R * wz_cmd_) / wheel_radius_;
-        w_fr_ = (vx_cmd_ + vy_cmd_ + R * wz_cmd_) / wheel_radius_;
-        w_bl_ = (vx_cmd_ + vy_cmd_ - R * wz_cmd_) / wheel_radius_;
-        w_br_ = (vx_cmd_ - vy_cmd_ + R * wz_cmd_) / wheel_radius_;
+        w_fl_ = (vx_filt_ - vy_filt_ - R * wz_filt_) / wheel_radius_;
+        w_fr_ = (vx_filt_ + vy_filt_ + R * wz_filt_) / wheel_radius_;
+        w_bl_ = (vx_filt_ + vy_filt_ - R * wz_filt_) / wheel_radius_;
+        w_br_ = (vx_filt_ - vy_filt_ + R * wz_filt_) / wheel_radius_;
 
         //计算目标角速度与实际的误差
         const double e_fl = w_fl_ - wfl_real;
@@ -161,8 +225,7 @@ namespace hero_chassis_controller {
         vy_body_ = r / 4.0 * (-wfl_real + wfr_real + wbl_real - wbr_real);
         omega_body_ = r / (4.0 * R) * (-wfl_real + wfr_real - wbl_real + wbr_real);
 
-        //用时间片来积分，将bask_link上的速度分解到odom固定轴上再积分出坐标
-        const double dt = period.toSec();
+        //将bask_link上的速度分解到odom固定轴上再积分出坐标
         if (dt > 0.0) {
             x_ += (vx_body_ * std::cos(th_) - vy_body_ * std::sin(th_)) * dt;
             y_ += (vx_body_ * std::sin(th_) + vy_body_ * std::cos(th_)) * dt;
@@ -185,6 +248,23 @@ namespace hero_chassis_controller {
         odom.twist.twist.linear.y = vy_body_;
         odom.twist.twist.angular.z = omega_body_;
         odom_pub_.publish(odom);
+
+        //发布路径
+        geometry_msgs::PoseStamped ps;
+        ps.header.stamp = time;
+        ps.header.frame_id = "odom";
+        ps.pose = odom.pose.pose;   // 就是底盘中心：x_, y_ 和四元数
+
+        path_msg_.header.stamp = time;
+        path_msg_.poses.push_back(ps);
+        if (path_msg_.poses.size() > path_max_poses_) {
+            path_msg_.poses.erase(
+                path_msg_.poses.begin(),
+                path_msg_.poses.begin() +
+                    static_cast<long>(path_msg_.poses.size() - path_max_poses_));
+        }
+        path_pub_.publish(path_msg_);
+
         //创建tf消息和广播
         geometry_msgs::TransformStamped tf_msg;
         tf_msg.header.stamp = time;
@@ -195,6 +275,40 @@ namespace hero_chassis_controller {
         tf_msg.transform.translation.z = 0.0;
         tf_msg.transform.rotation = tf2::toMsg(quat);
         tf_broadcaster_.sendTransform(tf_msg);
+    }
+
+    void HeroChassisController::modeCallback(const std_msgs::Bool::ConstPtr &msg) {
+        use_global_vel_ = msg->data;
+    }
+
+    void HeroChassisController::dynReconfigCb(
+        hero_chassis_controller::HeroChassisConfig &config, uint32_t level) {
+        (void)level;
+        max_vel_x_ = config.max_vel_x;
+        max_vel_y_ = config.max_vel_y;
+        max_vel_w_ = config.max_vel_w;
+        max_acc_x_ = config.max_acc_x;
+        max_acc_y_ = config.max_acc_y;
+        max_acc_w_ = config.max_acc_w;
+    }
+
+
+    double HeroChassisController::slew(double current, double target, double acc,double dt) {
+        if (dt <= 0.0) {
+            return current;
+        }
+        if (acc <= 0.0) {
+            return target;
+        }
+        const double max_dv = acc * dt;
+        const double err = target - current;
+        if (err > max_dv) {
+            return current + max_dv;
+        }
+        if (err < -max_dv) {
+            return current - max_dv;
+        }
+        return target;
     }
 
     PLUGINLIB_EXPORT_CLASS(hero_chassis_controller::HeroChassisController,

@@ -22,6 +22,14 @@
 #include <tf2_ros/transform_listener.h>
 #include <memory>
 
+//键盘控制
+#include <std_msgs/Bool.h>
+#include <dynamic_reconfigure/server.h>
+#include <hero_chassis_controller/HeroChassisConfig.h>
+
+//路径显示
+#include <nav_msgs/Path.h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace hero_chassis_controller {
 
@@ -40,7 +48,13 @@ namespace hero_chassis_controller {
         hardware_interface::JointHandle front_left_joint_, front_right_joint_,
             back_left_joint_, back_right_joint_;
     private:
+        //接收速度回调
         void cmdVelCallback(const geometry_msgs::Twist::ConstPtr &msg);
+
+        //键盘相关回调和斜坡控制
+        void modeCallback(const std_msgs::Bool::ConstPtr &msg);
+        void dynReconfigCb(hero_chassis_controller::HeroChassisConfig &config, uint32_t level);
+        static double slew(double current, double target, double acc, double dt);
 
         //速度订阅者
         ros::Subscriber cmd_vel_sub_;
@@ -72,6 +86,11 @@ namespace hero_chassis_controller {
         control_toolbox::Pid pid_bl_;
         control_toolbox::Pid pid_br_;
 
+        //路径发布
+        ros::Publisher path_pub_;
+        nav_msgs::Path path_msg_;
+        std::size_t path_max_poses_{5000};
+
         //创建位姿发布者和广播
         ros::Publisher odom_pub_;
         tf2_ros::TransformBroadcaster tf_broadcaster_;
@@ -94,6 +113,22 @@ namespace hero_chassis_controller {
         //全局系参数
         bool use_global_vel_{false};
         std::string global_frame_{"odom"};
+
+        ros::Subscriber mode_sub_;
+        ros::Time cmd_last_time_;
+        std::unique_ptr<dynamic_reconfigure::Server<hero_chassis_controller::HeroChassisConfig>>
+            dyn_server_;
+
+        double max_vel_x_{0.6};
+        double max_vel_y_{0.6};
+        double max_vel_w_{1.2};
+        double max_acc_x_{1.5};
+        double max_acc_y_{1.5};
+        double max_acc_w_{3.0};
+
+        double vx_filt_{0.0};
+        double vy_filt_{0.0};
+        double wz_filt_{0.0};
 
     };
 

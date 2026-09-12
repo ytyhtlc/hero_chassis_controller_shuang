@@ -12,8 +12,9 @@
     output="screen"
     args="controller/hero_chassis_controller
     controller/joint_state_controller"
-
     />
+
+        <node name="wasd_teleop" pkg="hero_chassis_controller" type="wasd_teleop" output="screen"/>
 
 
 </launch>
